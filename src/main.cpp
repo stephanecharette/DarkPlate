@@ -8,8 +8,36 @@ const std::string darkplate_names			= "DarkPlate.names";
 const size_t class_plate					= 0;
 cv::Size network_size;
 
+// Keep a deque of recent plates so we can draw them.  Newer ones go in front, older ones in back.
+std::deque<std::string> recent_plates;
 
-void process_plate(DarkHelp & darkhelp, cv::Mat plate)
+
+void draw_label(const std::string & txt, cv::Mat mat)
+{
+	const auto font_face		= cv::FONT_HERSHEY_PLAIN;
+	const auto font_border		= 10.0;
+	const auto font_scale		= 3.5;
+	const auto font_thickness	= 2;
+
+	const cv::Size text_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, nullptr);
+	const cv::Rect r(font_border * 4, font_border * 8, text_size.width + font_border * 2, text_size.height + font_border * 2);
+
+	// lighten a box into which we'll write some text
+	cv::Mat tmp;
+	mat(r).convertTo(tmp, -1, 1, 125.0);
+
+	const cv::Point point(font_border, tmp.rows - font_border);
+	cv::putText(tmp, txt, point, font_face, font_scale, {0, 0, 0}, font_thickness, cv::LINE_AA);
+
+	// copy the box and text back into the image
+	tmp.copyTo(mat(r));
+
+	return;
+}
+
+
+/// This is the 2nd stage detection.  By the time this is called, we have a smaller Roi, we no longer have the full frame.
+void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 {
 	auto results = darkhelp.predict(plate);
 	if (results.empty())
@@ -32,8 +60,9 @@ void process_plate(DarkHelp & darkhelp, cv::Mat plate)
 				return lhs.original_point.x < rhs.original_point.x;
 			});
 
-	std::cout << "-> results: " << results << std::endl;
+//	std::cout << "-> results: " << results << std::endl;
 
+	// go over the plate class-by-class and build up what we think the license plate might be
 	std::string license_plate;
 	double probability = 0.0;
 	for (const auto prediction : results)
@@ -44,21 +73,30 @@ void process_plate(DarkHelp & darkhelp, cv::Mat plate)
 			license_plate += darkhelp.names[prediction.best_class];
 		}
 	}
-	std::cout << "-> license plate: \"" << license_plate << "\", score: " << std::round(100.0 * probability / results.size()) << "%" << std::endl;
+
+	const std::string label = license_plate + " [" + std::to_string((size_t)std::round(100.0 * probability / results.size())) + "%]";
+	std::cout << "-> license plate: " << label << std::endl;
 
 	// store the sorted results back in DarkHelp so the annotations are drawn with the license plate first
 	darkhelp.prediction_results = results;
 	cv::Mat mat = darkhelp.annotate();
-	mat.copyTo(plate);
 
-	cv::imshow("plate", plate);
-	cv::waitKey(1);
+	if (license_plate.empty() == false)
+	{
+		draw_label(license_plate /* label */, mat);
+	}
+
+	// copy the annotated RoI back into the output image to be used when writing the video
+	mat.copyTo(output);
 
 	return;
 }
 
 
-void process_plate(DarkHelp & darkhelp, cv::Mat frame, const DarkHelp::PredictionResult & prediction)
+/** Process a single license plate located within the given prediction.
+ * This means we build a RoI and apply it the rectangle to both the frame and the output image.
+ */
+void process_plate(DarkHelp & darkhelp, cv::Mat & frame, const DarkHelp::PredictionResult & prediction, cv::Mat & output_frame)
 {
 	cv::Rect roi = prediction.rect;
 
@@ -98,14 +136,17 @@ void process_plate(DarkHelp & darkhelp, cv::Mat frame, const DarkHelp::Predictio
 	// the RoI should now be the same size as the network dimensions, and all edges should be valid
 
 	cv::Mat plate = frame(roi);
-	process_plate(darkhelp, plate);
+	cv::Mat output = output_frame(roi);
+	process_plate(darkhelp, plate, output);
 
 	return;
 }
 
 
-void process_frame(DarkHelp & darkhelp, cv::Mat frame)
+cv::Mat process_frame(DarkHelp & darkhelp, cv::Mat & frame)
 {
+	cv::Mat output_frame = frame.clone();
+
 	// we need to find all the license plates in the image
 	auto result = darkhelp.predict(frame);
 
@@ -114,11 +155,11 @@ void process_frame(DarkHelp & darkhelp, cv::Mat frame)
 		// at this stage we're only interested in the "license plate" class, ignore everything else
 		if (prediction.best_class == class_plate)
 		{
-			process_plate(darkhelp, frame, prediction);
+			process_plate(darkhelp, frame, prediction, output_frame);
 		}
 	}
 
-	return;
+	return output_frame;
 }
 
 
@@ -172,9 +213,12 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 			std::cout << "\r-> frame #" << frame_counter << " (" << std::round(100 * frame_counter / frames) << "%)" << std::flush;
 		}
 
-		process_frame(darkhelp, frame);
+		auto output_frame = process_frame(darkhelp, frame);
 
-		output.write(frame);
+//		cv::imshow(basename, frame);
+//		cv::waitKey(1);
+
+		output.write(output_frame);
 
 		frame_counter ++;
 	}
