@@ -6,21 +6,29 @@ const std::string darkplate_configuration	= "DarkPlate.cfg";
 const std::string darkplate_best_weights	= "DarkPlate_best.weights";
 const std::string darkplate_names			= "DarkPlate.names";
 const size_t class_plate					= 0;
+const auto font_face						= cv::FONT_HERSHEY_PLAIN;
+const auto font_border						= 10.0;
+const auto font_scale						= 3.5;
+const auto font_thickness					= 2;
+
 cv::Size network_size;
 
 // Keep a deque of recent plates so we can draw them.  Newer ones go in front, older ones in back.
 std::deque<std::string> recent_plates;
 
 
-void draw_label(const std::string & txt, cv::Mat mat)
+void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl)
 {
-	const auto font_face		= cv::FONT_HERSHEY_PLAIN;
-	const auto font_border		= 10.0;
-	const auto font_scale		= 3.5;
-	const auto font_thickness	= 2;
-
 	const cv::Size text_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, nullptr);
-	const cv::Rect r(font_border * 4, font_border * 8, text_size.width + font_border * 2, text_size.height + font_border * 2);
+	cv::Rect r(tl.x, tl.y - text_size.height - (font_border * 3), text_size.width + font_border * 2, text_size.height + font_border * 2);
+	if (r.x < 0)
+	{
+		r.x = 0;
+	}
+	if (r.y < 0)
+	{
+		r.y = 0;
+	}
 
 	// lighten a box into which we'll write some text
 	cv::Mat tmp;
@@ -43,7 +51,7 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 	if (results.empty())
 	{
 		// nothing we can do with this image since no license plate was found
-		std::cout << "-> failed find a plate in this RoI" << std::endl;
+//		std::cout << "-> failed find a plate in this RoI" << std::endl;
 		return;
 	}
 
@@ -62,11 +70,16 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 
 //	std::cout << "-> results: " << results << std::endl;
 
+	cv::Point tl = results[0].rect.tl();
+
 	// go over the plate class-by-class and build up what we think the license plate might be
 	std::string license_plate;
 	double probability = 0.0;
 	for (const auto prediction : results)
 	{
+		if (prediction.rect.x < tl.x) tl.x = prediction.rect.x;
+		if (prediction.rect.y < tl.y) tl.y = prediction.rect.y;
+
 		probability += prediction.best_probability;
 		if (prediction.best_class != class_plate)
 		{
@@ -74,16 +87,16 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 		}
 	}
 
-	const std::string label = license_plate + " [" + std::to_string((size_t)std::round(100.0 * probability / results.size())) + "%]";
-	std::cout << "-> license plate: " << label << std::endl;
-
 	// store the sorted results back in DarkHelp so the annotations are drawn with the license plate first
 	darkhelp.prediction_results = results;
 	cv::Mat mat = darkhelp.annotate();
 
 	if (license_plate.empty() == false)
 	{
-		draw_label(license_plate /* label */, mat);
+		const std::string label = license_plate + " [" + std::to_string((size_t)std::round(100.0 * probability / results.size())) + "%]";
+		std::cout << "-> license plate: " << label << std::endl;
+
+		draw_label(license_plate /* label */, mat, tl);
 	}
 
 	// copy the annotated RoI back into the output image to be used when writing the video
@@ -252,7 +265,7 @@ int main(int argc, char *argv[])
 				darkhelp.annotation_auto_hide_labels	= false;
 				darkhelp.annotation_include_duration	= false;
 				darkhelp.annotation_include_timestamp	= false;
-				darkhelp.enable_tiles					= true;
+				darkhelp.enable_tiles					= false;
 				darkhelp.combine_tile_predictions		= true;
 				darkhelp.include_all_names				= true;
 				darkhelp.names_include_percentage		= true;
