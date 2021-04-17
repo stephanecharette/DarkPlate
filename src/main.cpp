@@ -21,14 +21,11 @@ void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl)
 {
 	const cv::Size text_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, nullptr);
 	cv::Rect r(tl.x, tl.y - text_size.height - (font_border * 3), text_size.width + font_border * 2, text_size.height + font_border * 2);
-	if (r.x < 0)
-	{
-		r.x = 0;
-	}
-	if (r.y < 0)
-	{
-		r.y = 0;
-	}
+
+	if (r.x + r.width	> mat.cols)	{	r.x = mat.cols - r.width	- font_border;	}
+	if (r.y + r.height	> mat.rows)	{	r.y = mat.rows - r.height	- font_border;	}
+	if (r.x < 0)					{	r.x = 0;									}
+	if (r.y < 0)					{	r.y = 0;									}
 
 	// lighten a box into which we'll write some text
 	cv::Mat tmp;
