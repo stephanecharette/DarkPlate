@@ -17,22 +17,26 @@ cv::Size network_size;
 std::deque<std::string> recent_plates;
 
 
-void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl)
+void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl, const double factor = 1.0)
 {
-	const cv::Size text_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, nullptr);
-	cv::Rect r(tl.x, tl.y - text_size.height - (font_border * 3), text_size.width + font_border * 2, text_size.height + font_border * 2);
+	const auto border		= factor * font_border;
+	const auto scale		= factor * font_scale;
+	const auto thickness	= static_cast<int>(std::max(1.0, factor * font_thickness));
 
-	if (r.x + r.width	> mat.cols)	{	r.x = mat.cols - r.width	- font_border;	}
-	if (r.y + r.height	> mat.rows)	{	r.y = mat.rows - r.height	- font_border;	}
-	if (r.x < 0)					{	r.x = 0;									}
-	if (r.y < 0)					{	r.y = 0;									}
+	const cv::Size text_size = cv::getTextSize(txt, font_face, scale, thickness, nullptr);
+	cv::Rect r(tl.x, tl.y - text_size.height - (border * 3), text_size.width + border * 2, text_size.height + border * 2);
+
+	if (r.x + r.width	> mat.cols)	{	r.x = mat.cols - r.width	- border;	}
+	if (r.y + r.height	> mat.rows)	{	r.y = mat.rows - r.height	- border;	}
+	if (r.x < 0)					{	r.x = 0;								}
+	if (r.y < 0)					{	r.y = 0;								}
 
 	// lighten a box into which we'll write some text
 	cv::Mat tmp;
 	mat(r).convertTo(tmp, -1, 1, 125.0);
 
-	const cv::Point point(font_border, tmp.rows - font_border);
-	cv::putText(tmp, txt, point, font_face, font_scale, {0, 0, 0}, font_thickness, cv::LINE_AA);
+	const cv::Point point(border, tmp.rows - border);
+	cv::putText(tmp, txt, point, font_face, scale, {0, 0, 0}, thickness, cv::LINE_AA);
 
 	// copy the box and text back into the image
 	tmp.copyTo(mat(r));
@@ -211,6 +215,8 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 	size_t frame_counter = 0;
 	while (true)
 	{
+		const auto t1 = std::chrono::high_resolution_clock::now();
+
 		cv::Mat frame;
 		cap >> frame;
 		if (frame.empty())
@@ -225,8 +231,14 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 
 		auto output_frame = process_frame(darkhelp, frame);
 
-//		cv::imshow(basename, frame);
-//		cv::waitKey(1);
+		const auto t2 = std::chrono::high_resolution_clock::now();
+
+		// "steal" the duration format function in DarkHelp
+		darkhelp.duration = t2 - t1;
+		draw_label(darkhelp.duration_string(), output_frame, cv::Point(0, 0), 0.5);
+
+//		cv::imshow(basename, output_frame);
+//		cv::waitKey(5);
 
 		output.write(output_frame);
 
