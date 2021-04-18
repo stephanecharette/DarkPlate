@@ -10,11 +10,7 @@ const auto font_face						= cv::FONT_HERSHEY_PLAIN;
 const auto font_border						= 10.0;
 const auto font_scale						= 3.5;
 const auto font_thickness					= 2;
-
 cv::Size network_size;
-
-// Keep a deque of recent plates so we can draw them.  Newer ones go in front, older ones in back.
-std::deque<std::string> recent_plates;
 
 
 void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl, const double factor = 1.0)
@@ -237,8 +233,8 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 		darkhelp.duration = t2 - t1;
 		draw_label(darkhelp.duration_string(), output_frame, cv::Point(0, 0), 0.5);
 
-//		cv::imshow(basename, output_frame);
-//		cv::waitKey(5);
+		cv::imshow(basename, output_frame);
+		cv::waitKey(5);
 
 		output.write(output_frame);
 
