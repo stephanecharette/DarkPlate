@@ -21,7 +21,7 @@ Once the dependencies have been installed, run the following commands to build a
 ```
 mkdir -p ~/src
 cd ~/src
-git checkout https://github.com/stephanecharette/DarkPlate
+git clone https://github.com/stephanecharette/DarkPlate
 cd DarkPlate
 mkdir build
 cd build
