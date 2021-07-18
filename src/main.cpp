@@ -1,6 +1,8 @@
 // DarkHelp then pulls in OpenCV and much more, so this keeps the headers simple.
 #include <DarkHelp.hpp>
 
+#include <fstream> // needed for Ubuntu 18.04
+
 
 const std::string darkplate_configuration	= "DarkPlate.cfg";
 const std::string darkplate_best_weights	= "DarkPlate_best.weights";
@@ -56,7 +58,7 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 	std::sort(results.begin(), results.end(),
 			[](const DarkHelp::PredictionResult & lhs, const DarkHelp::PredictionResult & rhs)
 			{
-				// put the "license plate" class first so the characters get draw overtop of this class
+				// put the "license plate" class first so the characters are drawn overtop of this class
 				if (lhs.best_class == class_plate)	return true;
 				if (rhs.best_class == class_plate)	return false;
 
