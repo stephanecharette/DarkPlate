@@ -146,7 +146,6 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & frame, const DarkHelp::Predict
 	#endif
 
 	// the RoI should now be the same size as the network dimensions, and all edges should be valid
-
 	cv::Mat plate = frame(roi);
 	cv::Mat output = output_frame(roi);
 	process_plate(darkhelp, plate, output);
@@ -161,7 +160,6 @@ cv::Mat process_frame(DarkHelp & darkhelp, cv::Mat & frame)
 
 	// we need to find all the license plates in the image
 	auto result = darkhelp.predict(frame);
-
 	for (const auto & prediction : result)
 	{
 		// at this stage we're only interested in the "license plate" class, ignore everything else
@@ -206,6 +204,12 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 
 	std::cout	<< "-> " << static_cast<size_t>(width) << " x " << static_cast<size_t>(height) << " @ " << fps << " FPS" << std::endl
 				<< "-> " << frames << " frames (" << static_cast<size_t>(std::round(frames / fps)) << " seconds)" << std::endl;
+
+	if (width < network_size.width or height < network_size.height)
+	{
+		std::cout << "ERROR: \"" << filename << "\" [" << width << " x " << height << "] is smaller than the network size " << network_size << "!" << std::endl;
+		return;
+	}
 
 	cv::VideoWriter output;
 	output.open(basename + "_output.mp4", cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, cv::Size(width, height));
@@ -263,12 +267,15 @@ int main(int argc, char *argv[])
 			std::ifstream ifs(fn);
 			if (ifs.is_open())
 			{
+				const DarkHelp::EDriver driver = DarkHelp::EDriver::kDarknet;
+
 				ifs.close();
 				std::cout << "Found neural network: " << fn << std::endl;
 				const std::string cfg		= fn;
 				const std::string names		= path + darkplate_names;
 				const std::string weights	= path + darkplate_best_weights;
-				darkhelp.init(cfg, weights, names);
+				darkhelp.init(cfg, weights, names, true, driver);
+				darkhelp.enable_debug					= false;
 				darkhelp.annotation_auto_hide_labels	= false;
 				darkhelp.annotation_include_duration	= false;
 				darkhelp.annotation_include_timestamp	= false;
@@ -297,12 +304,12 @@ int main(int argc, char *argv[])
 	}
 	catch (const std::exception & e)
 	{
-		std::cout << "ERROR: " << e.what() << std::endl;
+		std::cout << std::endl << "ERROR: " << e.what() << std::endl;
 		return 1;
 	}
 	catch (...)
 	{
-		std::cout << "ERROR: unknown exception" << std::endl;
+		std::cout << std::endl << "ERROR: unknown exception" << std::endl;
 		return 2;
 	}
 
