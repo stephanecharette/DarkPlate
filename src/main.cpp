@@ -44,9 +44,9 @@ void draw_label(const std::string & txt, cv::Mat & mat, const cv::Point & tl, co
 
 
 /// This is the 2nd stage detection.  By the time this is called, we have a smaller Roi, we no longer have the full frame.
-void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
+void process_plate(DarkHelp::NN & nn, cv::Mat & plate, cv::Mat & output)
 {
-	auto results = darkhelp.predict(plate);
+	auto results = nn.predict(plate);
 	if (results.empty())
 	{
 		// nothing we can do with this image since no license plate was found
@@ -82,13 +82,13 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 		probability += prediction.best_probability;
 		if (prediction.best_class != class_plate)
 		{
-			license_plate += darkhelp.names[prediction.best_class];
+			license_plate += nn.names[prediction.best_class];
 		}
 	}
 
 	// store the sorted results back in DarkHelp so the annotations are drawn with the license plate first
-	darkhelp.prediction_results = results;
-	cv::Mat mat = darkhelp.annotate();
+	nn.prediction_results = results;
+	cv::Mat mat = nn.annotate();
 
 	if (license_plate.empty() == false)
 	{
@@ -108,7 +108,7 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & plate, cv::Mat & output)
 /** Process a single license plate located within the given prediction.
  * This means we build a RoI and apply it the rectangle to both the frame and the output image.
  */
-void process_plate(DarkHelp & darkhelp, cv::Mat & frame, const DarkHelp::PredictionResult & prediction, cv::Mat & output_frame)
+void process_plate(DarkHelp::NN & nn, cv::Mat & frame, const DarkHelp::PredictionResult & prediction, cv::Mat & output_frame)
 {
 	cv::Rect roi = prediction.rect;
 
@@ -148,24 +148,24 @@ void process_plate(DarkHelp & darkhelp, cv::Mat & frame, const DarkHelp::Predict
 	// the RoI should now be the same size as the network dimensions, and all edges should be valid
 	cv::Mat plate = frame(roi);
 	cv::Mat output = output_frame(roi);
-	process_plate(darkhelp, plate, output);
+	process_plate(nn, plate, output);
 
 	return;
 }
 
 
-cv::Mat process_frame(DarkHelp & darkhelp, cv::Mat & frame)
+cv::Mat process_frame(DarkHelp::NN & nn, cv::Mat & frame)
 {
 	cv::Mat output_frame = frame.clone();
 
 	// we need to find all the license plates in the image
-	auto result = darkhelp.predict(frame);
+	auto result = nn.predict(frame);
 	for (const auto & prediction : result)
 	{
 		// at this stage we're only interested in the "license plate" class, ignore everything else
 		if (prediction.best_class == class_plate)
 		{
-			process_plate(darkhelp, frame, prediction, output_frame);
+			process_plate(nn, frame, prediction, output_frame);
 		}
 	}
 
@@ -173,7 +173,7 @@ cv::Mat process_frame(DarkHelp & darkhelp, cv::Mat & frame)
 }
 
 
-void process(DarkHelp & darkhelp, const std::string & filename)
+void process(DarkHelp::NN & nn, const std::string & filename)
 {
 	std::cout << "Processing video file \"" << filename << "\"" << std::endl;
 
@@ -231,13 +231,12 @@ void process(DarkHelp & darkhelp, const std::string & filename)
 			std::cout << "\r-> frame #" << frame_counter << " (" << std::round(100 * frame_counter / frames) << "%)" << std::flush;
 		}
 
-		auto output_frame = process_frame(darkhelp, frame);
+		auto output_frame = process_frame(nn, frame);
 
 		const auto t2 = std::chrono::high_resolution_clock::now();
 
 		// "steal" the duration format function in DarkHelp
-		darkhelp.duration = t2 - t1;
-		draw_label(darkhelp.duration_string(), output_frame, cv::Point(0, 0), 0.5);
+		draw_label(DarkHelp::duration_string(t2 - t1), output_frame, cv::Point(0, 0), 0.5);
 
 		cv::imshow(basename, output_frame);
 		cv::waitKey(5);
@@ -256,7 +255,7 @@ int main(int argc, char *argv[])
 {
 	try
 	{
-		DarkHelp darkhelp;
+		DarkHelp::NN nn;
 
 		// first thing we need to do is find the neural network
 		bool initialization_done = false;
@@ -274,17 +273,17 @@ int main(int argc, char *argv[])
 				const std::string cfg		= fn;
 				const std::string names		= path + darkplate_names;
 				const std::string weights	= path + darkplate_best_weights;
-				darkhelp.init(cfg, weights, names, true, driver);
-				darkhelp.enable_debug					= false;
-				darkhelp.annotation_auto_hide_labels	= false;
-				darkhelp.annotation_include_duration	= false;
-				darkhelp.annotation_include_timestamp	= false;
-				darkhelp.enable_tiles					= false;
-				darkhelp.combine_tile_predictions		= true;
-				darkhelp.include_all_names				= true;
-				darkhelp.names_include_percentage		= true;
-				darkhelp.threshold						= 0.25;
-				darkhelp.sort_predictions				= DarkHelp::ESort::kUnsorted;
+				nn.init(cfg, weights, names, true, driver);
+				nn.config.enable_debug					= false;
+				nn.config.annotation_auto_hide_labels	= false;
+				nn.config.annotation_include_duration	= false;
+				nn.config.annotation_include_timestamp	= false;
+				nn.config.enable_tiles					= false;
+				nn.config.combine_tile_predictions		= true;
+				nn.config.include_all_names				= true;
+				nn.config.names_include_percentage		= true;
+				nn.config.threshold						= 0.25;
+				nn.config.sort_predictions				= DarkHelp::ESort::kUnsorted;
 				initialization_done						= true;
 				break;
 			}
@@ -295,11 +294,11 @@ int main(int argc, char *argv[])
 		}
 
 		// remember the size of the network, since we'll need to crop plates to this exact size
-		network_size = darkhelp.network_size();
+		network_size = nn.network_size();
 
 		for (int idx = 1; idx < argc; idx ++)
 		{
-			process(darkhelp, argv[idx]);
+			process(nn, argv[idx]);
 		}
 	}
 	catch (const std::exception & e)
