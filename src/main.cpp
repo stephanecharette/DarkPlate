@@ -74,7 +74,7 @@ void process_plate(DarkHelp::NN & nn, cv::Mat & plate, cv::Mat & output)
 	// go over the plate class-by-class and build up what we think the license plate might be
 	std::string license_plate;
 	double probability = 0.0;
-	for (const auto prediction : results)
+	for (const auto & prediction : results)
 	{
 		if (prediction.rect.x < tl.x) tl.x = prediction.rect.x;
 		if (prediction.rect.y < tl.y) tl.y = prediction.rect.y;
