@@ -15,7 +15,9 @@ SET (CMAKE_CXX_STANDARD				17	)
 SET (CMAKE_CXX_STANDARD_REQUIRED	ON	)
 SET (CMAKE_CXX_EXTENSIONS			OFF	)
 
-ADD_DEFINITIONS ("-Wall -Wextra -Werror -Wno-unused-parameter -Wshadow")
+IF (NOT WIN32 OR NOT MSVC)
+	ADD_DEFINITIONS ("-Wall -Wextra -Werror -Wno-unused-parameter -Wshadow")
+ENDIF ()
 
 FIND_PACKAGE (Threads	REQUIRED)
 FIND_PACKAGE (OpenCV	REQUIRED)
