@@ -18,7 +18,7 @@ SET (CMAKE_CXX_EXTENSIONS			OFF	)
 IF (NOT WIN32 OR NOT MSVC)
 	ADD_DEFINITIONS ("-Wall -Wextra -Werror -Wno-unused-parameter -Wshadow")
 ELSE()
-	ADD_DEFINITIONS("/Za")
+	ADD_DEFINITIONS("/permissive-")
 ENDIF ()
 
 FIND_PACKAGE (Threads	REQUIRED)
